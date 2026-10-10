@@ -47,7 +47,7 @@ flowchart LR
 
 ## SPL analyses
 
-## 5. Step 1: Index and Sourcetype Discovery
+## Step 1: Index and Sourcetype Discovery
 
 ### Objective
 
@@ -73,7 +73,7 @@ Counts events by index and sourcetype. The reported output identified `nyc-dc01-
 
 
 
-## 6. Step 2: Raw Event Inspection
+## Step 2: Raw Event Inspection
 
 ### Objective
 
@@ -99,7 +99,7 @@ Displays ten sample events and their metadata so the available authentication, h
 
 
 
-## 7. Step 3: Authentication Outcome Analysis
+## Step 3: Authentication Outcome Analysis
 
 ### Objective
 
@@ -125,7 +125,7 @@ Counts authentication events by result. The reported output contained 2,410 succ
 
 
 
-## 8. Step 4: Repeated Authentication Failure Investigation
+## Step 4: Repeated Authentication Failure Investigation
 
 ### Objective
 
@@ -151,7 +151,7 @@ Groups failures into ten-minute buckets by source IP, username, and hostname, re
 
 ![Repeated authentication search with no matching groups](evidence/04-repeated-failures-no-results-cropped.png)
 
-## 9. Step 5: Suspicious Command Detection
+## Step 5: Suspicious Command Detection
 
 ### Objective
 
@@ -177,7 +177,7 @@ Selects command-execution events already labelled `malicious=true` by the datase
 
 
 
-## 10. Step 6: Group Suspicious Activity by Host and Command Pattern
+## Step 6: Group Suspicious Activity by Host and Command Pattern
 
 ### Objective
 
@@ -191,7 +191,7 @@ index=nyc-dc01-deb-auth type="EXECVE" malicious=true
 | eval command_pattern=case(
     like(a2,"%/dev/tcp/%"), "Possible reverse shell",
     a1="/etc/shadow", "Shadow file access",
-    a2="-perm", "SUID file discovery",
+    a2="-perm" AND a3="-4000", "SUID file discovery",
     true(), "Other labelled command"
 )
 | stats count values(username) AS users by hostname command_pattern
@@ -201,13 +201,13 @@ index=nyc-dc01-deb-auth type="EXECVE" malicious=true
 ### What the Query Does
 
 
-Groups labelled command events by host and pattern. The reported output included reverse-shell-like activity on `LNX-DEV-02`, shadow-file access on `LNX-DEV-01`, and SUID discovery on `SRV-K8S-W01`. Because the input is pre-filtered by `malicious=true`, this is a summary of labelled activity rather than an independently validated detector.
+Groups labelled command events by host and pattern. The reported output included reverse-shell-like activity on `LNX-DEV-02`, shadow-file access on `LNX-DEV-01`, and SUID discovery on `SRV-K8S-W01`. Because the input is pre-filtered by `malicious=true`, this is a summary of labelled activity rather than an independently validated detector. The SUID category uses both `a2="-perm"` and `a3="-4000"`, matching the repeatedly displayed `/usr/bin/find / -perm -4000 -type f` pattern. This reflects the verified examples shown in the supplied screenshots; it does not establish that every SUID-related event in the dataset uses the same field values.
 
 ### Findings
 
 ![Host and command-pattern summary](evidence/06-host-command-pattern-summary-cropped.png)
 
-## 11. Step 7: Compare Command Patterns with Existing Dataset Labels
+## Step 7: Compare Command Patterns with Existing Dataset Labels
 
 ### Objective
 
@@ -235,7 +235,12 @@ index=nyc-dc01-deb-auth type="EXECVE"
 ### What the Query Does
 
 
-The reported output contained 1,477 matching events across the three patterns, all labelled malicious in that output. This is a consistency check against dataset labels, not proof of real-world detection accuracy.
+- Searches `EXECVE` events in the `nyc-dc01-deb-auth` index without filtering on a specific host.
+- Uses `eval` and `case` to classify matching command arguments as possible reverse shells, `/etc/shadow` access, or SUID file discovery.
+- Uses `stats` to count events and aggregate the `malicious` labels by `command_pattern`.
+- Sorts the summary by total event count.
+
+The query begins with `type="EXECVE"` and does not independently validate the dataset labels. It summarizes the selected command patterns and their existing `malicious` values; it does not prove that an actual compromise occurred.
 
 ### Findings
 
@@ -243,7 +248,7 @@ The reported output contained 1,477 matching events across the three patterns, a
 
 
 
-## 12. Step 8: Compare Activity Across Hosts
+## Step 8: Compare Activity Across Hosts
 
 ### Objective
 
@@ -274,14 +279,13 @@ Compares authentication outcomes and labelled suspicious command activity across
 
 ![Host-level activity summary](evidence/08-host-activity-summary.png)
 
-## 13. Step 9: Correlate Authentication with Suspicious Command Execution
+## Step 9: Correlate Authentication with Suspicious Command Execution
 
 ### Objective
 
-Investigate suspicious command events occurring within 30 minutes after successful authentication for the same username and host.
+Investigate suspicious command events occurring within 30 minutes of a preceding successful authentication for the same username and host.
 
 ### SPL Query
-
 
 ```spl
 index=nyc-dc01-deb-auth hostname="SRV-K8S-M01"
@@ -305,12 +309,16 @@ index=nyc-dc01-deb-auth hostname="SRV-K8S-M01"
 
 ### What the Query Does
 
+- Restricts the search to `SRV-K8S-M01` and selects successful authentication plus `EXECVE` events labelled `malicious=true`.
+- Orders events by username and time, then tracks the latest preceding successful authentication with `streamstats`.
+- Calculates the minutes between that authentication and each later suspicious command.
+- Keeps command events occurring within 30 minutes of the preceding successful authentication for the same username and host.
 
 ### Findings
 
-Looks for labelled suspicious commands within 30 minutes after a preceding successful authentication for the same username on `SRV-K8S-M01`. The reported output contained seven temporal matches. Without a session or process identifier, time proximity does not prove that the login caused the command.
+The reported output contained seven temporal matches on `SRV-K8S-M01`. These matches are investigation leads. Temporal correlation does not prove that the events belong to the same session or establish that the authentication caused the command execution. A session identifier, process identifier, or additional audit evidence would be needed for stronger correlation.
 
-No supplied screenshot corresponds to this correlation search. Add one here if available.
+No supplied screenshot currently corresponds to this correlation search.
 
 ## Findings
 
@@ -337,23 +345,33 @@ Future work could test sliding windows and alternative thresholds, validate patt
 
 ## Evidence
 
-Add screenshots using relative paths under an `evidence/` folder, for example:
+The repository contains these PNG evidence files:
 
-```text
-evidence/index-discovery.png
-evidence/authentication-outcomes.png
-evidence/suspicious-commands.png
-evidence/host-summary.png
-evidence/correlation.png
-```
+- `evidence/01-index-discovery.png`
+- `evidence/01-index-discovery-cropped.png`
+- `evidence/02-raw-event-inspection.png`
+- `evidence/02-raw-event-inspection-cropped.png`
+- `evidence/03-authentication-outcomes.png`
+- `evidence/03-authentication-outcomes-cropped.png`
+- `evidence/03-authentication-outcomes-duplicate.png`
+- `evidence/04-repeated-failures-no-results.png`
+- `evidence/04-repeated-failures-no-results-cropped.png`
+- `evidence/05-suspicious-command-results.png`
+- `evidence/05-suspicious-command-results-cropped.png`
+- `evidence/05-suspicious-command-results-duplicate.png`
+- `evidence/06-host-command-pattern-summary.png`
+- `evidence/06-host-command-pattern-summary-cropped.png`
+- `evidence/07-label-comparison.png`
+- `evidence/07-label-comparison-cropped.png`
+- `evidence/07-label-comparison-duplicate.png`
+- `evidence/08-host-activity-summary.png`
 
-
+The embedded images use the cropped files. No supplied screenshot currently corresponds to the Step 9 correlation search.
 ## References
 
 - [Splunk `stats` command](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/stats)
 - [Splunk `timechart` command](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/search-commands/timechart)
 - [Splunk alert examples](https://help.splunk.com/en/splunk-enterprise/alert-and-respond/alerting-manual/10.4/alert-examples/alert-examples)
-
 
 
 
