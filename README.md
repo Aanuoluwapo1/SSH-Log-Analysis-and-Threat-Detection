@@ -1,4 +1,4 @@
-# SSH Log Analysis and Threat Detection with Splunk
+# Log Analysis and Threat Detection with Splunk
 
 ## Project overview
 
