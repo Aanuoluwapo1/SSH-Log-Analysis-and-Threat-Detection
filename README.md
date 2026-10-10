@@ -71,7 +71,7 @@ Counts events by index and sourcetype. The reported output identified `nyc-dc01-
 
 ![Index and sourcetype discovery results](evidence/01-index-discovery-cropped.png)
 
-*Rendered from the supplied Splunk screenshot.*
+
 
 ## 6. Step 2: Raw Event Inspection
 
@@ -97,7 +97,7 @@ Displays ten sample events and their metadata so the available authentication, h
 
 ![Raw event inspection results](evidence/02-raw-event-inspection-cropped.png)
 
-*Rendered from the supplied Splunk screenshot.*
+
 
 ## 7. Step 3: Authentication Outcome Analysis
 
@@ -123,7 +123,7 @@ Counts authentication events by result. The reported output contained 2,410 succ
 
 ![Authentication outcome summary](evidence/03-authentication-outcomes-cropped.png)
 
-*One duplicate authentication screenshot was retained separately in `evidence/`.*
+
 
 ## 8. Step 4: Repeated Authentication Failure Investigation
 
@@ -175,7 +175,7 @@ Selects command-execution events already labelled `malicious=true` by the datase
 
 ![Labelled suspicious command results](evidence/05-suspicious-command-results-cropped.png)
 
-*One duplicate command-results screenshot was retained separately in `evidence/`.*
+
 
 ## 10. Step 6: Group Suspicious Activity by Host and Command Pattern
 
@@ -241,7 +241,7 @@ The reported output contained 1,477 matching events across the three patterns, a
 
 ![Command-pattern comparison with dataset labels](evidence/07-label-comparison-cropped.png)
 
-*One duplicate label-comparison screenshot was retained separately in `evidence/`.*
+
 
 ## 12. Step 8: Compare Activity Across Hosts
 
@@ -347,7 +347,6 @@ evidence/host-summary.png
 evidence/correlation.png
 ```
 
-Each image should correspond to the search section where it appears and should be labelled as evidence from the Splunk lab.
 
 ## References
 
